@@ -1,6 +1,9 @@
 import machine
-from machine import Pin
 import utime
+import network
+import socket
+from machine import Pin
+from time import sleep
    
 #Declaracion de Constantes
    
@@ -10,8 +13,55 @@ PIN_MOTOR2_ADELANTE = 20
 PIN_MOTOR2_ATRAS = 21
 PIN_SENSOR_TRIG = 14
 PIN_SENSOR_ECHO =15
+#Nombre de la red WiFi
+SSID = "samsung josema"
+PASSWORD = "18032002"
 
+#Clase para establecer la conexion WLAN entre la raspberry y la computadora
+#por medio de una pagina web
+class Connect():
+    def __init__(self, ssid, password):
+    #desde main se ingresa red y clave wifi para la conexion
+        self.ssid = ssid
+        self.password = password
 
+    def conectar(self):
+        #se crea una conexion WLAN, se activa y conecta con el wifi
+        net = network.WLAN(network.STA_IF)
+        net.active(True)
+        net.connect(self.ssid, self.password)
+        #Espera a lograr la conexion
+        while net.isconnected() == False:
+            self.send_message('Conectando ...')
+            sleep(1)
+        #guarda la direccion ip cuando se logra la conexion
+        ip = net.ifconfig()[0]
+        return ip
+    
+    def open_socket(ip):
+        #Se crea una direccion
+        address = (ip, 80)
+        #Se crea un socket y se vincula con la direccion
+        connection = socket.socket()
+        connection.bind(address)
+        connection.listen(1)
+        return connection
+    
+    def serve(self, connection):
+        
+        while True:
+            cliente = connection.accept()[0]
+            peticion = cliente.recv(1024)
+            peticion = str(peticion)
+            try:
+                peticion = peticion.split()[1]
+            except IndexError as e:
+                self.send_message(f"Error en la peticion. {e}")
+            
+
+    def send_message(self, message):
+        print(message)
+    
 #Clase para el Control del Motor
 
 class Motor():
@@ -29,6 +79,7 @@ class Motor():
         self.motor2_adelante.value(1)
         self.motor1_atras.value(0)
         self.motor2_atras.value(0)
+        print("Motor adelante")
     #metodo para hacer retroceder el carro
     def atras(self):
         self.motor1_adelante.value(0)
@@ -53,18 +104,22 @@ class Motor():
         self.motor2_adelante.value(1)
         self.motor1_atras.value(1)
         self.motor2_atras.value(0)
-        
+
 #Clase para manejo del Sensor
+        
 class SensorProximidad():
     def __init__(self):
         self.trig = Pin(PIN_SENSOR_TRIG, Pin.OUT)
-        self.echo = Pin(PIN_SENSOR_ECHO, Pin.OUT)
+        self.echo = Pin(PIN_SENSOR_ECHO, Pin.IN)
 
     #metodo para definir la distancia entre el carro y un obstaculo
-    def detectar_obstaculo(self):
+    def detectar_obstaculo(self, i):
+        print(f"Detectando obstaculos {i}")
         #asegurarse de que el trig empieze en bajo
         self.trig.low()
         utime.sleep_us(2)
+        #Agrega un retardo para evitar problemas de sincronizacion
+        utime.sleep_ms(50)
         #Activar el trigger por 10 microsegundos para enviar una señal
         self.trig.high()
         utime.sleep_us(10)
@@ -87,8 +142,8 @@ class SensorProximidad():
         frenar = False
         while not frenar:
             try:
-                distance = self.detectar_obstaculo()
-                if distance > 10:
+                distance = self.detectar_obstaculo(1)
+                if distance > 20:
                     self.send_message("No se detecta ningun obstaculo")
                 else:
                     self.send_message("Objeto detectado a {:.2f}cm".format(distance))
@@ -100,13 +155,10 @@ class SensorProximidad():
     #metodo para detectar si ya no se encuentran obstaculos para seguir con el avance
     def avance(self):
         avanzar = False
-        self.send_message("Si se ejecuta el sensor de avance, probleme en el while")
         while not avanzar:
-            self.send_message("while ejecuta")
             try:
-                distance = self.detectar_obstaculo()
-                self.send_message("while ejecuta")
-                if distance <= 10:
+                distance = self.detectar_obstaculo(2)
+                if distance <= 20:
                     self.send_message("Girando, no se puede avanzar, obstaculo detectado")
                 else:
                     self.send_message("Sin obstaculos, listo para avanzar")
@@ -135,12 +187,12 @@ class Movimiento():
         if frenado:
             self.frenar()
 
-    def frenar(self):
-        #detiene y gira a la derecha
+    def frenar(self, direccion):
+        #detiene y gira a la direccion indicada desde el cliente
         self.obj_motor.detener()
         print("Frenando")
-        #self.obj_motor.derecha()
-        #print("Girando a la derecha")
+        if direccion == "derecha":
+
         #cuando el sensor detecta que ya no hay obstaculos llama al metodo de avance
         avance = self.obj_sensor.avance()
         if avance:
