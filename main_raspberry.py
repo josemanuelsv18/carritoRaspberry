@@ -30,34 +30,88 @@ class Connect():
         net = network.WLAN(network.STA_IF)
         net.active(True)
         net.connect(self.ssid, self.password)
-        #Espera a lograr la conexion
-        while net.isconnected() == False:
-            self.send_message('Conectando ...')
-            sleep(1)
-        #guarda la direccion ip cuando se logra la conexion
-        ip = net.ifconfig()[0]
-        return ip
-    
-    def open_socket(ip):
-        #Se crea una direccion
-        address = (ip, 80)
-        #Se crea un socket y se vincula con la direccion
-        connection = socket.socket()
-        connection.bind(address)
-        connection.listen(1)
-        return connection
-    
-    def serve(self, connection):
-        
+        #Si ya conectado, no reconectar
+        if not net.isconnected():
+            self.send_message('Conectando a la red Wi-Fi...')
+            net.connect(self.ssid, self.password)
+            #Esperar la conexion
+            while not net.isconnected():
+                self.send_message("Conectando...")
+                sleep(1)
+        self.send_message('Conectado a la red:', net.ifconfig())
+
+    def pagina_web():
+        html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                </head>
+                <body>
+                <center>
+                <form action="./adelante">
+                <input type="submit" value="Adelante" style="background-color: #04AA6D; border-radius: 15px; height:120px; width:120px; border: none; color: white; padding: 16px 24px; margin: 4px 2px"  />
+                </form>
+                <table><tr>
+                <td><form action="./izquierda">
+                <input type="submit" value="Izquierda" style="background-color: #04AA6D; border-radius: 15px; height:120px; width:120px; border: none; color: white; padding: 16px 24px; margin: 4px 2px"/>
+                </form></td>
+                <td><form action="./detener">
+                <input type="submit" value="Detener" style="background-color: #FF0000; border-radius: 50px; height:120px; width:120px; border: none; color: white; padding: 16px 24px; margin: 4px 2px" />
+                </form></td>
+                <td><form action="./derecha">
+                <input type="submit" value="Derecha" style="background-color: #04AA6D; border-radius: 15px; height:120px; width:120px; border: none; color: white; padding: 16px 24px; margin: 4px 2px"/>
+                </form></td>
+                </tr></table>
+                <form action="./atras">
+                <input type="submit" value="Atras" style="background-color: #04AA6D; border-radius: 15px; height:120px; width:120px; border: none; color: white; padding: 16px 24px; margin: 4px 2px"/>
+                </form>
+                </body>
+                </html>
+                """
+        return str(html)
+                
+    def open_socket(self):
+        #Crear socket de servidor
+        addr = socket.getaddrinfo('0.0.0.0',80)[0][-1]
+        s = socket.socket()
+        s.bind(addr)
+        s.listen
+        self.send_message('Servidor web iniciando en el puerto 80')
+   
+    #Bucle principal del servidor web
+    def web(self, vehiculo, addr, s):
         while True:
-            cliente = connection.accept()[0]
-            peticion = cliente.recv(1024)
-            peticion = str(peticion)
+            cl, addr = s.accept()
+            self.send_message('Cliente conectado desde ', addr)
+            request = cl.recv(1024)
+            request = str(request) 
+            #Verificar las rutas de la solicitud
             try:
-                peticion = peticion.split()[1]
+                request = request.split()[1]
             except IndexError as e:
-                self.send_message(f"Error en la peticion. {e}")
-            
+                self.send_message(e)
+            if request == '/adelante?':
+                #avanzar el vehiculo
+                vehiculo.adelante()
+            elif request =='/izquierda?':
+                #girar a la izquierda hasta no tener obstaculos
+                vehiculo.izquierda()
+            elif request =='/detener?':
+                #Frenar el vehiculo
+                vehiculo.frenar()
+            elif request =='/derecha?':
+                #girar a la derecha hasta no tener obstaculos
+                vehiculo.derecha()
+            elif request =='/atras?':
+                #Retroceder el vehiculo por 3 segundos
+                vehiculo.retroceder()
+
+            #Responder con la pagina web
+            cl.send('HTTP/1.1 200 OK\n')
+            cl.send('Content-Type: text/html\n')
+            cl.send('Connection: close\n\n')
+            cl.sendall(self.pagina_web())
+            cl.close()
 
     def send_message(self, message):
         print(message)
@@ -187,16 +241,35 @@ class Movimiento():
         if frenado:
             self.frenar()
 
-    def frenar(self, direccion):
+    def frenar(self):
         #detiene y gira a la direccion indicada desde el cliente
         self.obj_motor.detener()
         print("Frenando")
-        if direccion == "derecha":
-
-        #cuando el sensor detecta que ya no hay obstaculos llama al metodo de avance
+    
+    def derecha(self):
+        #el carro gira a la derecha hasta no encontrar ningun obstaculo y vuelve a avanzar
+        self.obj_motor.derecha()
         avance = self.obj_sensor.avance()
         if avance:
-            self.avanzar()
+            self.obj_motor.detener()
+            sleep(1)
+            self.obj_motor.adelante()
+    
+    def izquierda(self):
+        #el carro gira hacia la izquierda hasta no encontrar ningun obstaculo y vuelve a avanzar
+        self.obj_motor.izquierda()
+        avance = self.obj_sensor.avance()
+        if avance:
+            self.obj_motor.detener()
+            sleep(1)
+            self.obj_motor.adelante()
+
+    def retroceder(self):
+        #retrocede el carro por solo 3 segundos, ya que el sensor no puede detectar obstaculos atras
+        self.obj_motor.atras()
+        sleep(3)
+        self.obj_motor.detener()
+
             
 #Clase Main para ejecutar el programa
 
@@ -204,9 +277,14 @@ class Main():
     def __init__(self) -> None:
         pass
     def main(self):
-        #obj_conexion = Connect()
+        obj_conexion = Connect(SSID, PASSWORD)
         obj_vehiculo = Movimiento()
-        obj_vehiculo.avanzar()
+        #conectar a la red WiFi
+        obj_conexion.conectar()
+        #abrir socket de servidor
+        server = obj_conexion.open_socket()
+        #crear bucle principal del servidor web
+        obj_conexion.web(obj_vehiculo, server[0], server[1])
 
 if __name__ == '__main__':
     app = Main()

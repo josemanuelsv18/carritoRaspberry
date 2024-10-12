@@ -6,13 +6,16 @@ import constantes
 class SensorProximidad():
     def __init__(self):
         self.trig = Pin(constantes.PIN_SENSOR_TRIG, Pin.OUT)
-        self.echo = Pin(constantes.PIN_SENSOR_ECHO, Pin.OUT)
+        self.echo = Pin(constantes.PIN_SENSOR_ECHO, Pin.IN)
 
     #metodo para definir la distancia entre el carro y un obstaculo
-    def detectar_obstaculo(self):
+    def detectar_obstaculo(self, i):
+        print(f"Detectando obstaculos {i}")
         #asegurarse de que el trig empieze en bajo
         self.trig.low()
         utime.sleep_us(2)
+        #Agrega un retardo para evitar problemas de sincronizacion
+        utime.sleep_ms(50)
         #Activar el trigger por 10 microsegundos para enviar una señal
         self.trig.high()
         utime.sleep_us(10)
@@ -35,8 +38,8 @@ class SensorProximidad():
         frenar = False
         while not frenar:
             try:
-                distance = self.detectar_obstaculo()
-                if distance > 100:
+                distance = self.detectar_obstaculo(1)
+                if distance > 20:
                     self.send_message("No se detecta ningun obstaculo")
                 else:
                     self.send_message("Objeto detectado a {:.2f}cm".format(distance))
@@ -50,8 +53,8 @@ class SensorProximidad():
         avanzar = False
         while not avanzar:
             try:
-                distance = self.detectar_obstaculo()
-                if distance <= 100:
+                distance = self.detectar_obstaculo(2)
+                if distance <= 20:
                     self.send_message("Girando, no se puede avanzar, obstaculo detectado")
                 else:
                     self.send_message("Sin obstaculos, listo para avanzar")

@@ -1,6 +1,6 @@
 import machine
 from machine import Pin
-import constantes
+from .. import constantes
 
 class Motor():
     def __init__(self):
@@ -17,6 +17,7 @@ class Motor():
         self.motor2_adelante.value(1)
         self.motor1_atras.value(0)
         self.motor2_atras.value(0)
+        print("Motor adelante")
     #metodo para hacer retroceder el carro
     def atras(self):
         self.motor1_adelante.value(0)
