@@ -262,6 +262,8 @@ class Movimiento():
             self.obj_motor.detener()
             sleep(1)
             self.obj_motor.adelante()
+        else:
+            self.derecha()
     
     def izquierda(self):
         #el carro gira hacia la izquierda hasta no encontrar ningun obstaculo y vuelve a avanzar
@@ -273,6 +275,8 @@ class Movimiento():
             self.obj_motor.detener()
             sleep(1)
             self.obj_motor.adelante()
+        else:
+            self.izquierda()
 
     def retroceder(self):
         #retrocede el carro por solo 3 segundos, ya que el sensor no puede detectar obstaculos atras
