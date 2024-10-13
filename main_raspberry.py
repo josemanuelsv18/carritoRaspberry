@@ -2,6 +2,7 @@ import machine
 import utime
 import network
 import socket
+import uasyncio as asyncio
 from machine import Pin
 from time import sleep
    
@@ -80,7 +81,7 @@ class Connect():
         return server
    
     #Bucle principal del servidor web
-    def web(self, vehiculo, addr, s):
+    async def web(self, vehiculo, addr, s):
         print("Metodo web ejecuta")
         while True:
             try:
@@ -90,29 +91,26 @@ class Connect():
                 self.send_message(f"Error al aceptar la conexión: {e}")
                 return
             request = cl.recv(1024)
-            request = str(request) 
-            #Verificar las rutas de la solicitud
+            request = str(request)
+
+            # Procesa los comandos enviados desde el cliente
             try:
                 request = request.split()[1]
             except IndexError as e:
                 self.send_message(e)
+            
             if request == '/adelante?':
-                #avanzar el vehiculo
-                vehiculo.avanzar()
-            elif request =='/izquierda?':
-                #girar a la izquierda hasta no tener obstaculos
-                vehiculo.izquierda()
-            elif request =='/detener?':
-                #Frenar el vehiculo
-                vehiculo.frenar()
-            elif request =='/derecha?':
-                #girar a la derecha hasta no tener obstaculos
-                vehiculo.derecha()
-            elif request =='/atras?':
-                #Retroceder el vehiculo por 3 segundos
-                vehiculo.retroceder()
+                asyncio.create_task(vehiculo.avanzar())  # Ejecutar avanzar como tarea asíncrona
+            elif request == '/izquierda?':
+                asyncio.create_task(vehiculo.izquierda())  # Ejecutar izquierda como tarea asíncrona
+            elif request == '/detener?':
+                asyncio.create_task(vehiculo.frenar())  # Detener el vehículo manualmente
+            elif request == '/derecha?':
+                asyncio.create_task(vehiculo.derecha())  # Ejecutar derecha como tarea asíncrona
+            elif request == '/atras?':
+                asyncio.create_task(vehiculo.retroceder())  # Ejecutar retroceder como tarea asíncrona
 
-            #Responder con la pagina web
+            # Responder con la pagina web
             cl.send('HTTP/1.1 200 OK\n')
             cl.send('Content-Type: text/html\n')
             cl.send('Connection: close\n\n')
@@ -237,49 +235,50 @@ class Movimiento():
     def __init__(self):
         self.obj_motor = Motor()
         self.obj_sensor = SensorProximidad()
-
-    #Avance y frenado son recursivos entre si
-    def avanzar(self):
+        self._detenido = False  # Flag para indicar si el vehículo debe detenerse
+    
+    # Función para avanzar con frenado automático y manual
+    async def avanzar(self):
+        self._detenido = False
         self.obj_motor.adelante()
         print("Avanzando")
-        #Cuando el sensor detecta la distancia de frenado llama al metodo frenar
-        frenado =  self.obj_sensor.frenado()
-        if frenado:
-            self.frenar()
 
-    def frenar(self):
-        #detiene y gira a la direccion indicada desde el cliente
+        # Mientras no se solicite detener el vehículo, sigue avanzando
+        while not self._detenido:
+            frenado = await self.obj_sensor.frenado()  # Aquí el frenado se vuelve asíncrono
+            if frenado:
+                await self.frenar()  # Llama al método de frenado si detecta un obstáculo
+            await asyncio.sleep(0.1)  # Cede el control a otras tareas
+
+    async def frenar(self):
+        self._detenido = True  # Detiene el vehículo
         self.obj_motor.detener()
         print("Frenando")
     
-    def derecha(self):
-        #el carro gira a la derecha hasta no encontrar ningun obstaculo y vuelve a avanzar
+    async def derecha(self):
         self.obj_motor.derecha()
-        sleep(1)
+        await asyncio.sleep(1)
         self.obj_motor.detener()
-        avance = self.obj_sensor.avance()
+        avance = await self.obj_sensor.avance()
         if avance:
             self.obj_motor.detener()
-            sleep(1)
+            await asyncio.sleep(1)
             self.obj_motor.adelante()
     
-    def izquierda(self):
-        #el carro gira hacia la izquierda hasta no encontrar ningun obstaculo y vuelve a avanzar
+    async def izquierda(self):
         self.obj_motor.izquierda()
-        sleep(1)
+        await asyncio.sleep(1)
         self.obj_motor.detener()
-        avance = self.obj_sensor.avance()
+        avance = await self.obj_sensor.avance()
         if avance:
             self.obj_motor.detener()
-            sleep(1)
+            await asyncio.sleep(1)
             self.obj_motor.adelante()
 
-    def retroceder(self):
-        #retrocede el carro por solo 3 segundos, ya que el sensor no puede detectar obstaculos atras
+    async def retroceder(self):
         self.obj_motor.atras()
-        sleep(3)
+        await asyncio.sleep(3)
         self.obj_motor.detener()
-
             
 #Clase Main para ejecutar el programa
 
@@ -298,4 +297,5 @@ class Main():
 
 if __name__ == '__main__':
     app = Main()
-    app.main()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(app.main())
