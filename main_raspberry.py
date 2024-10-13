@@ -154,16 +154,16 @@ class Motor():
         self.motor2_atras.value(0)
     #metodo para hacer girar el carro a la izquierda
     def izquierda(self):
-        self.motor1_adelante.value(1)
-        self.motor2_adelante.value(0)
-        self.motor1_atras.value(0)
-        self.motor2_atras.value(1)
-    #metodo para hacer girar el carro a la derecha
-    def derecha(self):
         self.motor1_adelante.value(0)
         self.motor2_adelante.value(1)
         self.motor1_atras.value(1)
         self.motor2_atras.value(0)
+    #metodo para hacer girar el carro a la derecha
+    def derecha(self):
+        self.motor1_adelante.value(1)
+        self.motor2_adelante.value(0)
+        self.motor1_atras.value(0)
+        self.motor2_atras.value(1)
 
 #Clase para manejo del Sensor
         
@@ -255,7 +255,7 @@ class Movimiento():
     def derecha(self):
         #el carro gira a la derecha hasta no encontrar ningun obstaculo y vuelve a avanzar
         self.obj_motor.derecha()
-        sleep(1)
+        utime.sleep_ms(500)
         self.obj_motor.detener()
         avance = self.obj_sensor.avance()
         if avance:
@@ -266,7 +266,7 @@ class Movimiento():
     def izquierda(self):
         #el carro gira hacia la izquierda hasta no encontrar ningun obstaculo y vuelve a avanzar
         self.obj_motor.izquierda()
-        sleep(1)
+        utime.sleep_ms(500)
         self.obj_motor.detener()
         avance = self.obj_sensor.avance()
         if avance:
