@@ -14,8 +14,8 @@ PIN_MOTOR2_ATRAS = 21
 PIN_SENSOR_TRIG = 14
 PIN_SENSOR_ECHO =15
 #Nombre de la red WiFi
-SSID = "samsung josema"
-PASSWORD = "18032002"
+SSID = "SV - SALA"
+PASSWORD = "11733647"
 
 #Clase para establecer la conexion WLAN entre la raspberry y la computadora
 #por medio de una pagina web
@@ -24,24 +24,7 @@ class Connect():
     #desde main se ingresa red y clave wifi para la conexion
         self.ssid = ssid
         self.password = password
-
-    def conectar(self):
-        #se crea una conexion WLAN, se activa y conecta con el wifi
-        net = network.WLAN(network.STA_IF)
-        net.active(True)
-        net.connect(self.ssid, self.password)
-        #Si ya conectado, no reconectar
-        if not net.isconnected():
-            self.send_message('Conectando a la red Wi-Fi...')
-            net.connect(self.ssid, self.password)
-            #Esperar la conexion
-            while not net.isconnected():
-                self.send_message("Conectando...")
-                sleep(1)
-        self.send_message('Conectado a la red:', net.ifconfig())
-
-    def pagina_web():
-        html = f"""
+        self.html = f"""
                 <!DOCTYPE html>
                 <html>
                 <head>
@@ -67,22 +50,45 @@ class Connect():
                 </form>
                 </body>
                 </html>
-                """
-        return str(html)
+                """ 
+
+    def conectar(self):
+        #se crea una conexion WLAN, se activa y conecta con el wifi
+        net = network.WLAN(network.STA_IF)
+        net.active(True)
+        net.connect(self.ssid, self.password)
+        #Si ya conectado, no reconectar
+        if not net.isconnected():
+            self.send_message('Conectando a la red Wi-Fi...')
+            net.connect(self.ssid, self.password)
+            #Esperar la conexion
+            while not net.isconnected():
+                self.send_message("Conectando...")
+                sleep(2)
+        print('Conectado a la red:', net.ifconfig())
                 
     def open_socket(self):
+        server = []
         #Crear socket de servidor
         addr = socket.getaddrinfo('0.0.0.0',80)[0][-1]
         s = socket.socket()
         s.bind(addr)
-        s.listen
+        s.listen(1)
         self.send_message('Servidor web iniciando en el puerto 80')
+        server.append(addr)
+        server.append(s)
+        return server
    
     #Bucle principal del servidor web
     def web(self, vehiculo, addr, s):
+        print("Metodo web ejecuta")
         while True:
-            cl, addr = s.accept()
-            self.send_message('Cliente conectado desde ', addr)
+            try:
+                cl, addr = s.accept()
+                self.send_message(f'Cliente conectado desde {addr}')
+            except OSError as e:
+                self.send_message(f"Error al aceptar la conexión: {e}")
+                return
             request = cl.recv(1024)
             request = str(request) 
             #Verificar las rutas de la solicitud
@@ -92,7 +98,7 @@ class Connect():
                 self.send_message(e)
             if request == '/adelante?':
                 #avanzar el vehiculo
-                vehiculo.adelante()
+                vehiculo.avanzar()
             elif request =='/izquierda?':
                 #girar a la izquierda hasta no tener obstaculos
                 vehiculo.izquierda()
@@ -110,7 +116,7 @@ class Connect():
             cl.send('HTTP/1.1 200 OK\n')
             cl.send('Content-Type: text/html\n')
             cl.send('Connection: close\n\n')
-            cl.sendall(self.pagina_web())
+            cl.sendall(self.html)
             cl.close()
 
     def send_message(self, message):
@@ -197,7 +203,7 @@ class SensorProximidad():
         while not frenar:
             try:
                 distance = self.detectar_obstaculo(1)
-                if distance > 20:
+                if distance > 50:
                     self.send_message("No se detecta ningun obstaculo")
                 else:
                     self.send_message("Objeto detectado a {:.2f}cm".format(distance))
@@ -212,7 +218,7 @@ class SensorProximidad():
         while not avanzar:
             try:
                 distance = self.detectar_obstaculo(2)
-                if distance <= 20:
+                if distance <= 50:
                     self.send_message("Girando, no se puede avanzar, obstaculo detectado")
                 else:
                     self.send_message("Sin obstaculos, listo para avanzar")
@@ -249,6 +255,8 @@ class Movimiento():
     def derecha(self):
         #el carro gira a la derecha hasta no encontrar ningun obstaculo y vuelve a avanzar
         self.obj_motor.derecha()
+        sleep(1)
+        self.obj_motor.detener()
         avance = self.obj_sensor.avance()
         if avance:
             self.obj_motor.detener()
@@ -258,6 +266,8 @@ class Movimiento():
     def izquierda(self):
         #el carro gira hacia la izquierda hasta no encontrar ningun obstaculo y vuelve a avanzar
         self.obj_motor.izquierda()
+        sleep(1)
+        self.obj_motor.detener()
         avance = self.obj_sensor.avance()
         if avance:
             self.obj_motor.detener()
