@@ -285,17 +285,18 @@ class Movimiento():
 class Main():
     def __init__(self) -> None:
         pass
-    def main(self):
+
+    async def main(self):  # Convertir en función asíncrona
         obj_conexion = Connect(SSID, PASSWORD)
         obj_vehiculo = Movimiento()
-        #conectar a la red WiFi
+        # Conectar a la red WiFi
         obj_conexion.conectar()
-        #abrir socket de servidor
+        # Abrir socket de servidor
         server = obj_conexion.open_socket()
-        #crear bucle principal del servidor web
-        obj_conexion.web(obj_vehiculo, server[0], server[1])
+        # Crear bucle principal del servidor web
+        await obj_conexion.web(obj_vehiculo, server[0], server[1])  # 'await' porque 'web' ahora es asíncrona
+
 
 if __name__ == '__main__':
     app = Main()
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(app.main())
+    asyncio.run(app.main())  # Ejecutar la coroutine 'main'
